@@ -1,13 +1,13 @@
 // ==UserScript==
 // @name         DirtyNinja War Tracker
 // @namespace    local.torn.wartracker
-// @version      1.1.5
+// @version      1.1.6
 // @description  Tracks hospital and flight time remaining for an enemy faction.
 // @author       jcarroll122009-dev
-// @homepageURL  https://github.com/jcarroll122009-dev/Dirtyninja-Hosp-and-fly-Tracker.
-// @supportURL   https://github.com/jcarroll122009-dev/Dirtyninja-Hosp-and-fly-Tracker./issues
-// @updateURL    https://raw.githubusercontent.com/jcarroll122009-dev/Dirtyninja-Hosp-and-fly-Tracker./main/torn-war-tracker.user.js
-// @downloadURL  https://raw.githubusercontent.com/jcarroll122009-dev/Dirtyninja-Hosp-and-fly-Tracker./main/torn-war-tracker.user.js
+// @homepageURL  https://github.com/jcarroll122009-dev/Dirtyninja-Hosp-and-fly-Tracker
+// @supportURL   https://github.com/jcarroll122009-dev/Dirtyninja-Hosp-and-fly-Tracker/issues
+// @updateURL    https://raw.githubusercontent.com/jcarroll122009-dev/Dirtyninja-Hosp-and-fly-Tracker/main/torn-war-tracker.user.js
+// @downloadURL  https://raw.githubusercontent.com/jcarroll122009-dev/Dirtyninja-Hosp-and-fly-Tracker/main/torn-war-tracker.user.js
 // @match        https://www.torn.com/*
 // @connect      api.torn.com
 // @grant        GM_xmlhttpRequest
