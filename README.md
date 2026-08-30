@@ -8,7 +8,7 @@ It also shows whether each faction member is Online, Idle, or Offline based on T
 
 1. Install Tampermonkey (or another compatible userscript manager).
 2. Open the raw userscript link:
-   `https://raw.githubusercontent.com/jcarroll122009-dev/Dirtyninja-Hosp-and-fly-Tracker./main/torn-war-tracker.user.js`
+   `https://raw.githubusercontent.com/jcarroll122009-dev/Dirtyninja-Hosp-and-fly-Tracker/main/torn-war-tracker.user.js`
 3. Choose **Install** in Tampermonkey.
 4. Open Torn, click the tracker's gear button, and enter:
    - Your own Public-access Torn API key.
@@ -23,13 +23,13 @@ Tampermonkey checks the script's `@updateURL`. Publish a newer `@version` to the
 For example, change:
 
 ```javascript
-// @version      1.1.5
+// @version      1.1.6
 ```
 
 to:
 
 ```javascript
-// @version      1.1.6
+// @version      1.1.7
 ```
 
 Users can also open the Tampermonkey dashboard and manually check for userscript updates.
