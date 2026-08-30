@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DirtyNinja War Tracker
 // @namespace    local.torn.wartracker
-// @version      1.1.2
+// @version      1.1.3
 // @description  Tracks hospital and flight time remaining for an enemy faction.
 // @author       jcarroll122009-dev
 // @homepageURL  https://github.com/jcarroll122009-dev/Dirtyninja-Hosp-and-fly-Tracker.
@@ -39,7 +39,7 @@
   const flightStatusCache = new Map();
 
   const css = `
-    #twt-panel{position:fixed;right:18px;top:90px;width:390px;max-height:75vh;z-index:999999;
+    #twt-panel{position:fixed;right:18px;top:90px;width:450px;max-width:calc(100vw - 36px);max-height:75vh;z-index:999999;
       background:#171717;color:#ddd;border:1px solid #555;border-radius:8px;box-shadow:0 5px 22px #000b;
       font:13px Arial,sans-serif;overflow:hidden}
     #twt-head{display:flex;align-items:center;gap:8px;padding:10px;background:#252525;cursor:move}
@@ -47,12 +47,15 @@
       color:#eee;padding:4px 7px;cursor:pointer}.twt-btn:hover{background:#444}
     #twt-status{padding:7px 10px;color:#aaa;border-bottom:1px solid #333}
     #twt-body{overflow:auto;max-height:calc(75vh - 76px)}
-    .twt-row{display:grid;grid-template-columns:1fr 90px 96px;align-items:center;gap:6px;padding:8px 10px;
+    .twt-row{display:grid;grid-template-columns:minmax(0,1fr) 62px 82px 96px;align-items:center;gap:6px;padding:8px 10px;
       border-bottom:1px solid #303030}.twt-row:hover{background:#222}
     .twt-name{color:#ddd;text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
     .twt-name:hover{color:#fff;text-decoration:underline}.twt-state{text-align:center;font-weight:bold}
     .twt-time{text-align:right;font-variant-numeric:tabular-nums}.twt-hospital{color:#ef6666}.twt-traveling{color:#62aef7}
     .twt-abroad{color:#d0a1ff}.twt-okay{color:#66d17a}.twt-other{color:#bbb}
+    .twt-presence{text-align:center;font-size:12px}.twt-presence::before{content:'';display:inline-block;width:7px;height:7px;
+      margin-right:4px;border-radius:50%;vertical-align:1px;background:#777}.twt-online{color:#66d17a}.twt-online::before{background:#4dcc68}
+    .twt-idle{color:#e4b95f}.twt-idle::before{background:#d9a93d}.twt-offline{color:#999}.twt-offline::before{background:#777}
     #twt-empty{padding:18px;text-align:center;color:#999}#twt-panel.twt-collapsed #twt-status,
     #twt-panel.twt-collapsed #twt-body{display:none}
     #twt-modal{position:fixed;inset:0;z-index:1000000;background:#0009;display:grid;place-items:center}
@@ -169,6 +172,7 @@
     });
     body.innerHTML = ranked.length ? ranked.map(member => {
       const state = member.status?.state || 'Unknown';
+      const presence = member.last_action?.status || 'Offline';
       const exactUntil = Number(member.status?.until || 0);
       const estimatedUntil = Number(member._estimatedUntil || 0);
       const until = exactUntil > now ? exactUntil : estimatedUntil;
@@ -184,6 +188,7 @@
       const details = member.status?.details || member.status?.description || '';
       return `<div class="twt-row" data-until="${until}" data-estimate="${isEstimate ? '1' : '0'}" data-state="${escapeAttr(state)}" title="${escapeAttr(details)}${isEstimate ? ' (estimated landing time)' : ''}">
         <a class="twt-name" href="https://www.torn.com/profiles.php?XID=${Number(member.id)}" target="_blank">${escapeHtml(member.name)} [${Number(member.id)}]</a>
+        <span class="twt-presence twt-${presence.toLowerCase().replace(/[^a-z]/g, '') || 'offline'}" title="Last action: ${escapeAttr(member.last_action?.relative || presence)}">${escapeHtml(presence)}</span>
         <span class="twt-state twt-${state.toLowerCase().replace(/[^a-z]/g, '') || 'other'}">${escapeHtml(label)}</span>
         <span class="twt-time">${remaining}</span></div>`;
     }).join('') : '<div id="twt-empty">No members returned.</div>';
