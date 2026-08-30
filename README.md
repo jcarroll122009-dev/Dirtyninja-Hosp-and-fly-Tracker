@@ -2,6 +2,8 @@
 
 A Tampermonkey userscript for Torn that displays an enemy faction's hospital and flight status.
 
+It also shows whether each faction member is Online, Idle, or Offline based on Torn's latest activity status.
+
 ## Install
 
 1. Install Tampermonkey (or another compatible userscript manager).
@@ -21,13 +23,13 @@ Tampermonkey checks the script's `@updateURL`. Publish a newer `@version` to the
 For example, change:
 
 ```javascript
-// @version      1.1.2
+// @version      1.1.3
 ```
 
 to:
 
 ```javascript
-// @version      1.1.3
+// @version      1.1.4
 ```
 
 Users can also open the Tampermonkey dashboard and manually check for userscript updates.
