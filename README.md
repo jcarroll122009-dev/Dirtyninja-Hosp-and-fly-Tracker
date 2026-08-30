@@ -4,6 +4,8 @@ A Tampermonkey userscript for Torn that displays an enemy faction's hospital and
 
 It also shows whether each faction member is Online, Idle, or Offline based on Torn's latest activity status.
 
+The Activity sort places Online members first, Idle members next, and Offline members last. The sort button can switch between Activity, Condition, and Name.
+
 ## Install
 
 1. Install Tampermonkey (or another compatible userscript manager).
@@ -23,13 +25,13 @@ Tampermonkey checks the script's `@updateURL`. Publish a newer `@version` to the
 For example, change:
 
 ```javascript
-// @version      1.1.3
+// @version      1.1.4
 ```
 
 to:
 
 ```javascript
-// @version      1.1.4
+// @version      1.1.5
 ```
 
 Users can also open the Tampermonkey dashboard and manually check for userscript updates.
