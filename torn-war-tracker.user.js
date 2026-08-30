@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DirtyNinja War Tracker
 // @namespace    local.torn.wartracker
-// @version      1.1.4
+// @version      1.1.5
 // @description  Tracks hospital and flight time remaining for an enemy faction.
 // @author       jcarroll122009-dev
 // @homepageURL  https://github.com/jcarroll122009-dev/Dirtyninja-Hosp-and-fly-Tracker.
@@ -25,8 +25,7 @@
     key: 'twt_api_key',
     faction: 'twt_enemy_faction_id',
     collapsed: 'twt_collapsed',
-    flights: 'twt_flight_estimates',
-    sort: 'twt_sort_mode'
+    flights: 'twt_flight_estimates'
   };
   const STANDARD_FLIGHT_MINUTES = {
     mexico: 24, 'cayman islands': 33, cayman: 33, canada: 39, hawaii: 127,
@@ -46,7 +45,6 @@
     #twt-head{display:flex;align-items:center;gap:8px;padding:10px;background:#252525;cursor:move}
     #twt-title{font-weight:bold;flex:1;color:#eee}.twt-btn{border:1px solid #666;border-radius:4px;background:#333;
       color:#eee;padding:4px 7px;cursor:pointer}.twt-btn:hover{background:#444}
-    #twt-sort{font-size:11px;min-width:66px}
     #twt-status{padding:7px 10px;color:#aaa;border-bottom:1px solid #333}
     #twt-body{overflow:auto;max-height:calc(75vh - 76px)}
     .twt-row{display:grid;grid-template-columns:minmax(0,1fr) 62px 82px 96px;align-items:center;gap:6px;padding:8px 10px;
@@ -73,7 +71,6 @@
   if (GM_getValue(STORAGE.collapsed, false)) panel.classList.add('twt-collapsed');
   panel.innerHTML = `
     <div id="twt-head"><span id="twt-title">DirtyNinja War Tracker</span>
-      <button class="twt-btn" id="twt-sort" title="Change sorting">Activity</button>
       <button class="twt-btn" id="twt-refresh" title="Refresh now">↻</button>
       <button class="twt-btn" id="twt-settings" title="Settings">⚙</button>
       <button class="twt-btn" id="twt-collapse" title="Collapse">—</button></div>
@@ -82,17 +79,6 @@
 
   const body = panel.querySelector('#twt-body');
   const statusLine = panel.querySelector('#twt-status');
-  const sortButton = panel.querySelector('#twt-sort');
-  const sortModes = ['activity', 'condition', 'name'];
-  let sortMode = GM_getValue(STORAGE.sort, 'activity');
-  if (!sortModes.includes(sortMode)) sortMode = 'activity';
-  updateSortButton();
-  sortButton.onclick = () => {
-    sortMode = sortModes[(sortModes.indexOf(sortMode) + 1) % sortModes.length];
-    GM_setValue(STORAGE.sort, sortMode);
-    updateSortButton();
-    render();
-  };
   panel.querySelector('#twt-refresh').onclick = loadMembers;
   panel.querySelector('#twt-settings').onclick = showSettings;
   panel.querySelector('#twt-collapse').onclick = () => {
@@ -179,15 +165,10 @@
   function render() {
     const now = Math.floor(Date.now() / 1000);
     const ranked = [...members].sort((a, b) => {
-      const activityPriority = { Online: 0, Idle: 1, Offline: 2 };
-      const conditionPriority = { Hospital: 0, Traveling: 1, Abroad: 2, Okay: 3 };
-      const activityDifference = (activityPriority[a.last_action?.status] ?? 3) - (activityPriority[b.last_action?.status] ?? 3);
-      const conditionDifference = (conditionPriority[a.status?.state] ?? 4) - (conditionPriority[b.status?.state] ?? 4);
-      const timeDifference = Number(a.status?.until || 0) - Number(b.status?.until || 0);
-      const nameDifference = a.name.localeCompare(b.name);
-      if (sortMode === 'name') return nameDifference;
-      if (sortMode === 'condition') return conditionDifference || activityDifference || timeDifference || nameDifference;
-      return activityDifference || conditionDifference || timeDifference || nameDifference;
+      const priority = { Hospital: 0, Traveling: 1, Abroad: 2, Okay: 3 };
+      const ap = priority[a.status?.state] ?? 4;
+      const bp = priority[b.status?.state] ?? 4;
+      return ap - bp || Number(a.status?.until || 0) - Number(b.status?.until || 0) || a.name.localeCompare(b.name);
     });
     body.innerHTML = ranked.length ? ranked.map(member => {
       const state = member.status?.state || 'Unknown';
@@ -211,14 +192,6 @@
         <span class="twt-state twt-${state.toLowerCase().replace(/[^a-z]/g, '') || 'other'}">${escapeHtml(label)}</span>
         <span class="twt-time">${remaining}</span></div>`;
     }).join('') : '<div id="twt-empty">No members returned.</div>';
-  }
-
-  function updateSortButton() {
-    const labels = { activity: 'Activity', condition: 'Condition', name: 'Name' };
-    sortButton.textContent = labels[sortMode];
-    sortButton.title = sortMode === 'activity'
-      ? 'Sorted Online → Idle → Offline. Click to change.'
-      : `Sorted by ${labels[sortMode].toLowerCase()}. Click to change.`;
   }
 
   function updateCountdowns() {
