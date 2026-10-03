@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         DirtyNinja War Tracker
 // @namespace    local.torn.wartracker
-// @version      1.1.6
-// @description  Tracks hospital and flight time remaining for an enemy faction.
+// @version      1.2.0
+// @description  Tracks hospital time, flights, activity, and optional FFScouter battle-stat estimates for an enemy faction.
 // @author       jcarroll122009-dev
 // @homepageURL  https://github.com/jcarroll122009-dev/Dirtyninja-Hosp-and-fly-Tracker
 // @supportURL   https://github.com/jcarroll122009-dev/Dirtyninja-Hosp-and-fly-Tracker/issues
@@ -10,6 +10,7 @@
 // @downloadURL  https://raw.githubusercontent.com/jcarroll122009-dev/Dirtyninja-Hosp-and-fly-Tracker/main/torn-war-tracker.user.js
 // @match        https://www.torn.com/*
 // @connect      api.torn.com
+// @connect      ffscouter.com
 // @grant        GM_xmlhttpRequest
 // @grant        GM_getValue
 // @grant        GM_setValue
@@ -25,7 +26,8 @@
     key: 'twt_api_key',
     faction: 'twt_enemy_faction_id',
     collapsed: 'twt_collapsed',
-    flights: 'twt_flight_estimates'
+    flights: 'twt_flight_estimates',
+    ffscouter: 'twt_ffscouter_enabled'
   };
   const STANDARD_FLIGHT_MINUTES = {
     mexico: 24, 'cayman islands': 33, cayman: 33, canada: 39, hawaii: 127,
@@ -36,6 +38,9 @@
 
   let members = [];
   let refreshTimer;
+  let bsEstimates = new Map();
+  let bsLastFetched = 0;
+  let bsFaction = '';
   const flightStatusCache = new Map();
 
   const css = `
@@ -49,7 +54,9 @@
     #twt-body{overflow:auto;max-height:calc(75vh - 76px)}
     .twt-row{display:grid;grid-template-columns:minmax(0,1fr) 62px 82px 96px;align-items:center;gap:6px;padding:8px 10px;
       border-bottom:1px solid #303030}.twt-row:hover{background:#222}
-    .twt-name{color:#ddd;text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .twt-name{color:#ddd;text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;flex:1}
+    .twt-player{min-width:0;display:flex;align-items:center;gap:5px}.twt-bs{color:#8fc7ff;font-size:11px;font-weight:bold;
+      white-space:nowrap}.twt-bs-na{color:#777;font-weight:normal}
     .twt-name:hover{color:#fff;text-decoration:underline}.twt-state{text-align:center;font-weight:bold}
     .twt-time{text-align:right;font-variant-numeric:tabular-nums}.twt-hospital{color:#ef6666}.twt-traveling{color:#62aef7}
     .twt-abroad{color:#d0a1ff}.twt-okay{color:#66d17a}.twt-other{color:#bbb}
@@ -61,7 +68,9 @@
     #twt-modal{position:fixed;inset:0;z-index:1000000;background:#0009;display:grid;place-items:center}
     #twt-card{width:min(430px,90vw);background:#222;color:#ddd;border:1px solid #666;border-radius:8px;padding:18px}
     #twt-card h3{margin:0 0 14px}#twt-card label{display:block;margin:10px 0 4px}
-    #twt-card input{box-sizing:border-box;width:100%;padding:8px;background:#111;color:#eee;border:1px solid #555;border-radius:4px}
+    #twt-card input[type="password"],#twt-card input[inputmode="numeric"]{box-sizing:border-box;width:100%;padding:8px;
+      background:#111;color:#eee;border:1px solid #555;border-radius:4px}
+    .twt-check{display:flex!important;align-items:center;gap:8px;margin-top:14px!important}.twt-check input{margin:0}
     #twt-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:16px}.twt-note{color:#aaa;font-size:12px;line-height:1.4}
   `;
 
@@ -96,7 +105,9 @@
       <input id="twt-key" type="password" autocomplete="off" value="${escapeAttr(GM_getValue(STORAGE.key, ''))}">
       <label for="twt-faction">Enemy faction ID</label>
       <input id="twt-faction" inputmode="numeric" value="${escapeAttr(GM_getValue(STORAGE.faction, ''))}">
+      <label class="twt-check"><input id="twt-ffscouter" type="checkbox" ${GM_getValue(STORAGE.ffscouter, false) ? 'checked' : ''}> Show FFScouter battle-stat estimates</label>
       <p class="twt-note">Each user must enter their own Public-access Torn API key. It is stored only in that user's userscript-manager storage and sent only to api.torn.com.</p>
+      <p class="twt-note">When FFScouter estimates are enabled, the same key and enemy player IDs are also sent to ffscouter.com. The key must already be registered with FFScouter.</p>
       <div id="twt-actions"><button class="twt-btn" id="twt-clear">Clear saved settings</button><button class="twt-btn" id="twt-cancel">Cancel</button><button class="twt-btn" id="twt-save">Save</button></div></div>`;
     document.body.append(modal);
     modal.querySelector('#twt-cancel').onclick = () => modal.remove();
@@ -104,6 +115,7 @@
       GM_setValue(STORAGE.key, '');
       GM_setValue(STORAGE.faction, '');
       GM_setValue(STORAGE.flights, {});
+      GM_setValue(STORAGE.ffscouter, false);
       members = [];
       modal.remove();
       loadMembers();
@@ -112,9 +124,14 @@
     modal.querySelector('#twt-save').onclick = () => {
       const key = modal.querySelector('#twt-key').value.trim();
       const faction = modal.querySelector('#twt-faction').value.trim();
+      const ffscouter = modal.querySelector('#twt-ffscouter').checked;
       if (!key || !/^\d+$/.test(faction)) return alert('Enter an API key and a numeric faction ID.');
       GM_setValue(STORAGE.key, key);
       GM_setValue(STORAGE.faction, faction);
+      GM_setValue(STORAGE.ffscouter, ffscouter);
+      bsEstimates = new Map();
+      bsLastFetched = 0;
+      bsFaction = '';
       modal.remove();
       loadMembers();
     };
@@ -145,6 +162,7 @@
           applyFlightEstimates();
           statusLine.textContent = `${members.length} members • refreshed ${new Date().toLocaleTimeString()}`;
           render();
+          loadBattleStats(key, faction);
           enrichMissingFlightTimes(key);
         } catch (error) {
           statusLine.textContent = `API error: ${error.message}`;
@@ -173,6 +191,7 @@
     body.innerHTML = ranked.length ? ranked.map(member => {
       const state = member.status?.state || 'Unknown';
       const presence = member.last_action?.status || 'Offline';
+      const bs = bsEstimates.get(Number(member.id));
       const exactUntil = Number(member.status?.until || 0);
       const estimatedUntil = Number(member._estimatedUntil || 0);
       const until = exactUntil > now ? exactUntil : estimatedUntil;
@@ -187,11 +206,52 @@
       const label = state === 'Hospital' ? 'Hospital' : state === 'Traveling' ? 'Flying' : state;
       const details = member.status?.details || member.status?.description || '';
       return `<div class="twt-row" data-until="${until}" data-estimate="${isEstimate ? '1' : '0'}" data-state="${escapeAttr(state)}" title="${escapeAttr(details)}${isEstimate ? ' (estimated landing time)' : ''}">
-        <a class="twt-name" href="https://www.torn.com/profiles.php?XID=${Number(member.id)}" target="_blank">${escapeHtml(member.name)} [${Number(member.id)}]</a>
+        <div class="twt-player"><a class="twt-name" href="https://www.torn.com/profiles.php?XID=${Number(member.id)}" target="_blank">${escapeHtml(member.name)} [${Number(member.id)}]</a>${GM_getValue(STORAGE.ffscouter, false) ? `<span class="twt-bs ${bs ? '' : 'twt-bs-na'}" title="FFScouter estimated total battle stats">BS: ${escapeHtml(bs || 'N/A')}</span>` : ''}</div>
         <span class="twt-presence twt-${presence.toLowerCase().replace(/[^a-z]/g, '') || 'offline'}" title="Last action: ${escapeAttr(member.last_action?.relative || presence)}">${escapeHtml(presence)}</span>
         <span class="twt-state twt-${state.toLowerCase().replace(/[^a-z]/g, '') || 'other'}">${escapeHtml(label)}</span>
         <span class="twt-time">${remaining}</span></div>`;
     }).join('') : '<div id="twt-empty">No members returned.</div>';
+  }
+
+  function loadBattleStats(key, faction) {
+    if (!GM_getValue(STORAGE.ffscouter, false) || !members.length) return;
+    const cacheIsFresh = bsFaction === String(faction) && Date.now() - bsLastFetched < 5 * 60_000;
+    if (cacheIsFresh) return;
+    const targets = members.map(member => Number(member.id)).filter(Boolean).join(',');
+    if (!targets) return;
+    statusLine.textContent += ' • loading BS…';
+    GM_xmlhttpRequest({
+      method: 'GET',
+      url: `https://ffscouter.com/api/v1/get-stats?key=${encodeURIComponent(key)}&targets=${encodeURIComponent(targets)}`,
+      timeout: 20_000,
+      onload: response => {
+        try {
+          const data = JSON.parse(response.responseText);
+          if (response.status < 200 || response.status >= 300 || !Array.isArray(data)) {
+            throw new Error(data?.error || `HTTP ${response.status}`);
+          }
+          bsEstimates = new Map(data.map(item => [Number(item.player_id), item.bs_estimate_human || formatBattleStats(item.bs_estimate)]));
+          bsLastFetched = Date.now();
+          bsFaction = String(faction);
+          render();
+          statusLine.textContent = `${members.length} members • BS updated ${new Date().toLocaleTimeString()}`;
+        } catch (error) {
+          statusLine.textContent = `FFScouter: ${error.message}`;
+        }
+      },
+      onerror: () => { statusLine.textContent = 'FFScouter network error.'; },
+      ontimeout: () => { statusLine.textContent = 'FFScouter request timed out.'; }
+    });
+  }
+
+  function formatBattleStats(value) {
+    const number = Number(value);
+    if (!Number.isFinite(number) || number <= 0) return null;
+    if (number >= 1e12) return `${(number / 1e12).toFixed(2).replace(/\.00$/, '')}t`;
+    if (number >= 1e9) return `${(number / 1e9).toFixed(2).replace(/\.00$/, '')}b`;
+    if (number >= 1e6) return `${(number / 1e6).toFixed(2).replace(/\.00$/, '')}m`;
+    if (number >= 1e3) return `${(number / 1e3).toFixed(1).replace(/\.0$/, '')}k`;
+    return String(Math.round(number));
   }
 
   function updateCountdowns() {
