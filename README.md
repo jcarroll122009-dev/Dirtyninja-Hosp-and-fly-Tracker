@@ -24,13 +24,13 @@ Tampermonkey checks the script's `@updateURL`. Publish a newer `@version` to the
 For example, change:
 
 ```javascript
-// @version      1.2.0
+// @version      1.2.1
 ```
 
 to:
 
 ```javascript
-// @version      1.2.1
+// @version      1.2.2
 ```
 
 Users can also open the Tampermonkey dashboard and manually check for userscript updates.
