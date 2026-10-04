@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DirtyNinja War Tracker
 // @namespace    local.torn.wartracker
-// @version      1.2.0
+// @version      1.2.1
 // @description  Tracks hospital time, flights, activity, and optional FFScouter battle-stat estimates for an enemy faction.
 // @author       jcarroll122009-dev
 // @homepageURL  https://github.com/jcarroll122009-dev/Dirtyninja-Hosp-and-fly-Tracker
@@ -47,8 +47,8 @@
     #twt-panel{position:fixed;right:18px;top:90px;width:450px;max-width:calc(100vw - 36px);max-height:75vh;z-index:999999;
       background:#171717;color:#ddd;border:1px solid #555;border-radius:8px;box-shadow:0 5px 22px #000b;
       font:13px Arial,sans-serif;overflow:hidden}
-    #twt-head{display:flex;align-items:center;gap:8px;padding:10px;background:#252525;cursor:move}
-    #twt-title{font-weight:bold;flex:1;color:#eee}.twt-btn{border:1px solid #666;border-radius:4px;background:#333;
+    #twt-head{display:flex;align-items:center;gap:6px;padding:10px;background:#252525;cursor:move}
+    #twt-title{font-weight:bold;flex:1;min-width:0;color:#eee;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.twt-btn{flex:0 0 auto;border:1px solid #666;border-radius:4px;background:#333;
       color:#eee;padding:4px 7px;cursor:pointer}.twt-btn:hover{background:#444}
     #twt-status{padding:7px 10px;color:#aaa;border-bottom:1px solid #333}
     #twt-body{overflow:auto;max-height:calc(75vh - 76px)}
@@ -72,6 +72,10 @@
       background:#111;color:#eee;border:1px solid #555;border-radius:4px}
     .twt-check{display:flex!important;align-items:center;gap:8px;margin-top:14px!important}.twt-check input{margin:0}
     #twt-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:16px}.twt-note{color:#aaa;font-size:12px;line-height:1.4}
+    @media(max-width:520px){#twt-panel{left:4px!important;right:4px!important;top:60px;width:auto!important;max-width:none}
+      #twt-head{padding:7px 6px;gap:4px}#twt-title{font-size:12px}.twt-btn{padding:3px 6px}
+      .twt-row{grid-template-columns:minmax(0,1fr) 55px 67px 72px;gap:3px;padding:7px 5px}
+      .twt-presence,.twt-state,.twt-time{font-size:11px}.twt-bs{font-size:10px}.twt-name{font-size:11px}}
   `;
 
   document.head.append(Object.assign(document.createElement('style'), { textContent: css }));
@@ -160,7 +164,7 @@
           }
           members = Array.isArray(data.members) ? data.members : Object.values(data.members || {});
           applyFlightEstimates();
-          statusLine.textContent = `${members.length} members • refreshed ${new Date().toLocaleTimeString()}`;
+          statusLine.textContent = `${members.length} members • refreshed ${new Date().toLocaleTimeString()}${GM_getValue(STORAGE.ffscouter, false) ? '' : ' • BS off — enable in ⚙'}`;
           render();
           loadBattleStats(key, faction);
           enrichMissingFlightTimes(key);
@@ -334,7 +338,7 @@
     });
     await Promise.all(workers);
     applyFlightEstimates();
-    statusLine.textContent = `${members.length} members • refreshed ${new Date().toLocaleTimeString()}`;
+    statusLine.textContent = `${members.length} members • refreshed ${new Date().toLocaleTimeString()}${GM_getValue(STORAGE.ffscouter, false) ? '' : ' • BS off — enable in ⚙'}`;
     render();
   }
 
