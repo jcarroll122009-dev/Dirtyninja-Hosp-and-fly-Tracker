@@ -1,8 +1,10 @@
 # DirtyNinja War Tracker
 
-A Tampermonkey userscript for Torn that displays an enemy faction's hospital and flight status.
+A Tampermonkey userscript for Torn that displays your faction's live chain timer and progress alongside an enemy faction's hospital and flight status.
 
 It also shows whether each faction member is Online, Idle, or Offline based on Torn's latest activity status. An optional FFScouter integration displays estimated total battle stats beside each member's name.
+
+The chain panel shows current hits, the next official chain bonus milestone, hits remaining, and a live break or cooldown timer.
 
 ## Install
 
@@ -24,13 +26,13 @@ Tampermonkey checks the script's `@updateURL`. Publish a newer `@version` to the
 For example, change:
 
 ```javascript
-// @version      1.2.1
+// @version      1.3.0
 ```
 
 to:
 
 ```javascript
-// @version      1.2.2
+// @version      1.3.1
 ```
 
 Users can also open the Tampermonkey dashboard and manually check for userscript updates.
