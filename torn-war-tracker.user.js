@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         DirtyNinja War Tracker
 // @namespace    local.torn.wartracker
-// @version      1.2.1
-// @description  Tracks hospital time, flights, activity, and optional FFScouter battle-stat estimates for an enemy faction.
+// @version      1.3.0
+// @description  Tracks faction chain progress, hospital time, flights, activity, and optional FFScouter battle-stat estimates.
 // @author       jcarroll122009-dev
 // @homepageURL  https://github.com/jcarroll122009-dev/Dirtyninja-Hosp-and-fly-Tracker
 // @supportURL   https://github.com/jcarroll122009-dev/Dirtyninja-Hosp-and-fly-Tracker/issues
@@ -22,6 +22,7 @@
 
   const API_ROOT = 'https://api.torn.com/v2';
   const REFRESH_MS = 30_000;
+  const CHAIN_BONUSES = [10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 10000, 25000, 50000, 100000];
   const STORAGE = {
     key: 'twt_api_key',
     faction: 'twt_enemy_faction_id',
@@ -38,6 +39,9 @@
 
   let members = [];
   let refreshTimer;
+  let chainData = null;
+  let chainFetchedAt = 0;
+  let chainStatusMessage = 'Waiting for chain data…';
   let bsEstimates = new Map();
   let bsLastFetched = 0;
   let bsFaction = '';
@@ -50,8 +54,16 @@
     #twt-head{display:flex;align-items:center;gap:6px;padding:10px;background:#252525;cursor:move}
     #twt-title{font-weight:bold;flex:1;min-width:0;color:#eee;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.twt-btn{flex:0 0 auto;border:1px solid #666;border-radius:4px;background:#333;
       color:#eee;padding:4px 7px;cursor:pointer}.twt-btn:hover{background:#444}
+    #twt-chain{position:relative;display:grid;grid-template-columns:1fr auto;gap:3px 10px;padding:8px 10px;
+      background:#1d1d1d;border-bottom:1px solid #333;overflow:hidden}
+    #twt-chain.twt-chain-inactive{color:#777}.twt-chain-label{position:relative;z-index:1;font-weight:bold;color:#eee}
+    .twt-chain-inactive .twt-chain-label{color:#888}.twt-chain-timer{position:relative;z-index:1;color:#ffca55;
+      font-weight:bold;font-variant-numeric:tabular-nums}.twt-chain-meta{position:relative;z-index:1;color:#aaa;font-size:11px}
+    .twt-chain-timer.twt-chain-danger{color:#ff5f5f}
+    #twt-chain-progress{position:absolute;inset:0 auto 0 0;width:0;background:linear-gradient(90deg,#573a0b99,#8d611199);
+      transition:width .35s ease;pointer-events:none}
     #twt-status{padding:7px 10px;color:#aaa;border-bottom:1px solid #333}
-    #twt-body{overflow:auto;max-height:calc(75vh - 76px)}
+    #twt-body{overflow:auto;max-height:calc(75vh - 124px)}
     .twt-row{display:grid;grid-template-columns:minmax(0,1fr) 62px 82px 96px;align-items:center;gap:6px;padding:8px 10px;
       border-bottom:1px solid #303030}.twt-row:hover{background:#222}
     .twt-name{color:#ddd;text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;flex:1}
@@ -63,7 +75,7 @@
     .twt-presence{text-align:center;font-size:12px}.twt-presence::before{content:'';display:inline-block;width:7px;height:7px;
       margin-right:4px;border-radius:50%;vertical-align:1px;background:#777}.twt-online{color:#66d17a}.twt-online::before{background:#4dcc68}
     .twt-idle{color:#e4b95f}.twt-idle::before{background:#d9a93d}.twt-offline{color:#999}.twt-offline::before{background:#777}
-    #twt-empty{padding:18px;text-align:center;color:#999}#twt-panel.twt-collapsed #twt-status,
+    #twt-empty{padding:18px;text-align:center;color:#999}#twt-panel.twt-collapsed #twt-chain,#twt-panel.twt-collapsed #twt-status,
     #twt-panel.twt-collapsed #twt-body{display:none}
     #twt-modal{position:fixed;inset:0;z-index:1000000;background:#0009;display:grid;place-items:center}
     #twt-card{width:min(430px,90vw);background:#222;color:#ddd;border:1px solid #666;border-radius:8px;padding:18px}
@@ -74,6 +86,7 @@
     #twt-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:16px}.twt-note{color:#aaa;font-size:12px;line-height:1.4}
     @media(max-width:520px){#twt-panel{left:4px!important;right:4px!important;top:60px;width:auto!important;max-width:none}
       #twt-head{padding:7px 6px;gap:4px}#twt-title{font-size:12px}.twt-btn{padding:3px 6px}
+      #twt-chain{padding:7px 6px}.twt-chain-label{font-size:12px}.twt-chain-timer{font-size:12px}
       .twt-row{grid-template-columns:minmax(0,1fr) 55px 67px 72px;gap:3px;padding:7px 5px}
       .twt-presence,.twt-state,.twt-time{font-size:11px}.twt-bs{font-size:10px}.twt-name{font-size:11px}}
   `;
@@ -87,11 +100,15 @@
       <button class="twt-btn" id="twt-refresh" title="Refresh now">↻</button>
       <button class="twt-btn" id="twt-settings" title="Settings">⚙</button>
       <button class="twt-btn" id="twt-collapse" title="Collapse">—</button></div>
+    <div id="twt-chain" class="twt-chain-inactive"><div id="twt-chain-progress"></div>
+      <span class="twt-chain-label">Chain: —</span><span class="twt-chain-timer">—</span>
+      <span class="twt-chain-meta">Waiting for chain data…</span></div>
     <div id="twt-status">Starting…</div><div id="twt-body"></div>`;
   document.body.append(panel);
 
   const body = panel.querySelector('#twt-body');
   const statusLine = panel.querySelector('#twt-status');
+  const chainPanel = panel.querySelector('#twt-chain');
   panel.querySelector('#twt-refresh').onclick = loadMembers;
   panel.querySelector('#twt-settings').onclick = showSettings;
   panel.querySelector('#twt-collapse').onclick = () => {
@@ -151,6 +168,7 @@
       return;
     }
     statusLine.textContent = 'Refreshing…';
+    loadChain(key);
     GM_xmlhttpRequest({
       method: 'GET',
       url: `${API_ROOT}/faction/${encodeURIComponent(faction)}/members?striptags=true&comment=war_tracker`,
@@ -182,6 +200,78 @@
         refreshTimer = setTimeout(loadMembers, REFRESH_MS);
       }
     });
+  }
+
+  function loadChain(key) {
+    GM_xmlhttpRequest({
+      method: 'GET',
+      url: `${API_ROOT}/faction/chain?comment=war_tracker_chain`,
+      headers: { Authorization: `ApiKey ${key}` },
+      timeout: 15_000,
+      onload: response => {
+        try {
+          const data = JSON.parse(response.responseText);
+          if (response.status < 200 || response.status >= 300 || data.error) {
+            throw new Error(data.error?.error || data.error?.message || `HTTP ${response.status}`);
+          }
+          chainData = data.chain || null;
+          chainFetchedAt = Date.now();
+          chainStatusMessage = chainData ? '' : 'No active chain';
+          renderChain();
+        } catch (error) {
+          showChainUnavailable(`Chain unavailable: ${error.message}`);
+        }
+      },
+      onerror: () => showChainUnavailable('Chain network error'),
+      ontimeout: () => showChainUnavailable('Chain request timed out')
+    });
+  }
+
+  function renderChain() {
+    if (!chainData) {
+      showChainUnavailable(chainStatusMessage);
+      return;
+    }
+    const current = Math.max(0, Number(chainData.current || 0));
+    const elapsed = Math.floor((Date.now() - chainFetchedAt) / 1000);
+    const timeout = Math.max(0, Number(chainData.timeout || 0) - elapsed);
+    const cooldownValue = Number(chainData.cooldown || 0);
+    const cooldown = cooldownValue > 1_000_000_000
+      ? Math.max(0, cooldownValue - Math.floor(Date.now() / 1000))
+      : Math.max(0, cooldownValue - elapsed);
+    const nextBonus = CHAIN_BONUSES.find(bonus => bonus > current);
+    const previousBonus = [...CHAIN_BONUSES].reverse().find(bonus => bonus <= current) || 0;
+    const progress = nextBonus
+      ? Math.max(0, Math.min(100, ((current - previousBonus) / (nextBonus - previousBonus)) * 100))
+      : 100;
+    const label = nextBonus ? `${current.toLocaleString()} / ${nextBonus.toLocaleString()}` : `${current.toLocaleString()} / MAX`;
+    const hitsLeft = nextBonus ? Math.max(0, nextBonus - current) : 0;
+    const isActive = timeout > 0;
+    const isCooldown = !isActive && cooldown > 0;
+
+    chainPanel.classList.toggle('twt-chain-inactive', !isActive && !isCooldown);
+    chainPanel.querySelector('.twt-chain-label').textContent = `Chain: ${label}`;
+    const timerElement = chainPanel.querySelector('.twt-chain-timer');
+    timerElement.classList.toggle('twt-chain-danger', isActive && timeout <= 60);
+    timerElement.textContent = isActive
+      ? formatDuration(timeout)
+      : isCooldown
+        ? `CD ${formatDuration(cooldown)}`
+        : 'Inactive';
+    chainPanel.querySelector('.twt-chain-meta').textContent = nextBonus
+      ? `${hitsLeft.toLocaleString()} hit${hitsLeft === 1 ? '' : 's'} to next bonus`
+      : 'Maximum chain bonus reached';
+    chainPanel.querySelector('#twt-chain-progress').style.width = `${progress}%`;
+  }
+
+  function showChainUnavailable(message) {
+    chainStatusMessage = message;
+    chainPanel.classList.add('twt-chain-inactive');
+    chainPanel.querySelector('.twt-chain-label').textContent = 'Chain: —';
+    chainPanel.querySelector('.twt-chain-timer').classList.remove('twt-chain-danger');
+    chainPanel.querySelector('.twt-chain-timer').textContent = '—';
+    chainPanel.querySelector('.twt-chain-meta').textContent = message;
+    chainPanel.querySelector('#twt-chain-progress').style.width = '0%';
   }
 
   function render() {
@@ -259,6 +349,7 @@
   }
 
   function updateCountdowns() {
+    renderChain();
     const now = Math.floor(Date.now() / 1000);
     body.querySelectorAll('.twt-row').forEach(row => {
       const until = Number(row.dataset.until);
